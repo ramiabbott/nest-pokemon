@@ -1,15 +1,24 @@
 import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { CreatePokemonDto } from './dto/create-pokemon.dto';
 import { UpdatePokemonDto } from './dto/update-pokemon.dto';
 import { Pokemon } from './entities/pokemon.entity';
 import { isValidObjectId, Model } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
+import { PaginationDto } from 'src/common/dto/pagination.dto';
 
 @Injectable()
 export class PokemonService {
+  defaultLimit: number
 
-  @InjectModel(Pokemon.name)
-  private readonly pokemonModel: Model<Pokemon>;
+  constructor(
+    @InjectModel(Pokemon.name)
+    private readonly pokemonModel: Model<Pokemon>,
+    private readonly configService: ConfigService,
+  ) { 
+    console.log(process.env.DEFAULT_LIMIT)
+    this.defaultLimit = this.configService.get<number>('defaultLimit') || 7
+  }
 
   async create(createPokemonDto: CreatePokemonDto) {
     try {
@@ -21,8 +30,11 @@ export class PokemonService {
     }
   }
 
-  findAll() {
-    return `This action returns all pokemon`;
+  async findAll(paginationDto: PaginationDto) {
+    const { limit = this.defaultLimit, offset = 0 } = paginationDto
+    return await this.pokemonModel.find()
+      .limit(limit)
+      .skip(offset)
   }
 
   async findOne(id: string) {
@@ -63,12 +75,21 @@ export class PokemonService {
   }
 
   async remove(id: string) {
-    
+
     const { deletedCount } = await this.pokemonModel.deleteOne({ _id: id });
     if (deletedCount === 0) {
       throw new BadRequestException(`Pokemon with id "${id}" not found`)
     }
-   return  
+    return
+  }
+
+  async removeAll() {
+    //DELETEMANY HACE UN DELETE DE TODOS LOS DOCUMENTOS EN LA COLECCION
+    const { deletedCount } = await this.pokemonModel.deleteMany({});
+    if (deletedCount === 0) {
+      throw new BadRequestException(`No Pokemon found to delete`)
+    }
+    return
   }
 
   private readonly handleErrorException = (error: any) => {
